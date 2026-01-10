@@ -1,7 +1,9 @@
 use iced::keyboard::{self, Key};
 use iced::widget::{button, column, container, row, text, text_editor};
-use iced::{event, Element, Event, Length, Size, Subscription, Task};
+use iced::{event, Element, Event, Font, Length, Size, Subscription, Task};
+use iced::{Background, Border, Color, Theme};
 use iced::window;
+// time module not available in iced 0.14 without feature
 use std::sync::OnceLock;
 
 use crate::clipboard_utils;
@@ -45,11 +47,15 @@ impl Default for ResidentClaudeInput {
     }
 }
 
+fn resident_theme(_state: &ResidentClaudeInput) -> Theme {
+    Theme::Dark
+}
+
 /// Messages for the resident application
 #[derive(Debug, Clone)]
 pub enum ResidentMessage {
     EditorAction(text_editor::Action),
-    Submit,      // Send via direct paste (Ctrl+V)
+    Submit,        // Send via direct paste (Ctrl+V)
     Event(Event),
 }
 
@@ -93,6 +99,20 @@ fn resident_update(state: &mut ResidentClaudeInput, message: ResidentMessage) ->
                 logger::log("[DEBUG app] Window focused");
             }
 
+            // Handle Ctrl+I to toggle focus back to terminal
+            if let Event::Keyboard(keyboard::Event::KeyPressed {
+                key: Key::Character(c),
+                modifiers,
+                ..
+            }) = &event
+            {
+                if c.as_str() == "i" && modifiers.control() {
+                    if let Some(hwnd) = get_config().and_then(|c| c.terminal_hwnd) {
+                        let _ = terminal::set_foreground_window(hwnd);
+                    }
+                }
+            }
+
             // Handle Ctrl+Enter to send
             // Note: We use KeyReleased because text_editor consumes KeyPressed for Enter
             if let Event::Keyboard(keyboard::Event::KeyReleased {
@@ -112,49 +132,42 @@ fn resident_update(state: &mut ResidentClaudeInput, message: ResidentMessage) ->
 }
 
 fn resident_view(state: &ResidentClaudeInput) -> Element<'_, ResidentMessage> {
-    let config = get_config();
-
-    // Session info header (only show label if provided)
-    let header = if let Some(config) = config {
-        if let Some(ref label) = config.label {
-            column![
-                text(format!("Label: {}", label)).size(14),
-                text("─".repeat(60)).size(10)
-            ].spacing(5).padding(5)
-        } else {
-            column![].padding(0)
-        }
-    } else {
-        column![].padding(0)
-    };
-
-    // Text editor with shortcuts in placeholder
+    // Text editor with Catppuccin Mocha styling
     let editor = text_editor(&state.content)
-        .placeholder("Enter your prompt here... (Ctrl+I: Focus | Ctrl+Enter: Send)")
+        .placeholder("Enter your prompt... (Ctrl+I: Toggle | Ctrl+Enter: Send)")
         .on_action(ResidentMessage::EditorAction)
         .height(Length::Fill)
-        .padding(10);
+        .padding(10)
+        .style(|_theme: &Theme, _status| text_editor::Style {
+            background: Background::Color(Color::from_rgb8(49, 50, 68)),   // Surface0
+            border: Border {
+                radius: 8.0.into(),
+                width: 1.0,
+                color: Color::from_rgb8(69, 71, 90),  // Surface1
+            },
+            placeholder: Color::from_rgb8(108, 112, 134), // Overlay0
+            value: Color::from_rgb8(205, 214, 244),       // Text
+            selection: Color::from_rgba8(137, 180, 250, 0.4),  // Blue with 40% opacity
+        });
 
-    // Status message
+    // Status message (Catppuccin colors)
     let status = if let Some(ref msg) = state.status_message {
-        text(msg).size(12)
+        if msg.contains("error") || msg.contains("Error") {
+            text(msg).size(12).color(Color::from_rgb8(243, 139, 168))  // Red
+        } else {
+            text(msg).size(12).color(Color::from_rgb8(166, 227, 161))  // Green
+        }
     } else {
         text("").size(12)
     };
 
-    // Buttons
-    let submit_button = button(text("Send (Ctrl+Enter)").size(14))
-        .padding([8, 16])
-        .on_press(ResidentMessage::Submit);
-
-    let buttons = row![status, submit_button]
-        .spacing(10)
-        .align_y(iced::Alignment::Center);
+    // Status bar
+    let status_bar = container(status)
+        .padding([5, 10]);
 
     let content = column![
-        header,
         editor,
-        buttons,
+        status_bar,
     ]
     .spacing(10)
     .padding(10);
@@ -162,10 +175,16 @@ fn resident_view(state: &ResidentClaudeInput) -> Element<'_, ResidentMessage> {
     container(content)
         .width(Length::Fill)
         .height(Length::Fill)
+        .style(|_theme: &Theme| container::Style {
+            background: Some(Background::Color(Color::from_rgb8(30, 30, 46))), // Base
+            ..Default::default()
+        })
         .into()
 }
 
 fn resident_subscription(_state: &ResidentClaudeInput) -> Subscription<ResidentMessage> {
+    // Note: Pulse animation disabled for now (time::every not available in iced 0.14)
+    // Just use static highlight when typing - can add animation later
     event::listen().map(ResidentMessage::Event)
 }
 
@@ -179,14 +198,27 @@ pub fn run_resident_gui(config: ResidentConfig) -> iced::Result {
         terminal_hwnd: config.terminal_hwnd,
     });
 
+    // Load window icon from PNG
+    let icon = window::icon::from_file_data(
+        include_bytes!("../assets/MojiBridge-Icon.png"),
+        None,
+    ).ok();
+
     iced::application(
         || (ResidentClaudeInput::default(), Task::none()),
         resident_update,
         resident_view,
     )
-    .title("Claude Input")
+    .title("MojiBridge")
     .subscription(resident_subscription)
     .window_size(Size::new(600.0, 350.0))
+    .window(window::Settings {
+        icon,
+        ..Default::default()
+    })
+    .theme(resident_theme)
+    .font(include_bytes!("../assets/NotoSansJP-Regular.ttf").as_slice())
+    .default_font(Font::with_name("Noto Sans JP"))
     .run()
 }
 
@@ -290,13 +322,25 @@ fn subscription(_state: &ClaudeInput) -> Subscription<Message> {
 
 /// Run the GUI application in one-shot mode (legacy)
 pub fn run_gui() -> iced::Result {
+    // Load window icon from PNG
+    let icon = window::icon::from_file_data(
+        include_bytes!("../assets/MojiBridge-Icon.png"),
+        None,
+    ).ok();
+
     iced::application(
         || (ClaudeInput::default(), Task::none()),
         update,
         view,
     )
-    .title("Claude Input")
+    .title("MojiBridge")
     .subscription(subscription)
     .window_size(Size::new(500.0, 300.0))
+    .window(window::Settings {
+        icon,
+        ..Default::default()
+    })
+    .font(include_bytes!("../assets/NotoSansJP-Regular.ttf").as_slice())
+    .default_font(Font::with_name("Noto Sans JP"))
     .run()
 }

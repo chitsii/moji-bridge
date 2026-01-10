@@ -10,12 +10,12 @@ use clap::Parser;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
-/// Check if a Claude Input window already exists
+/// Check if a MojiBridge window already exists
 #[cfg(windows)]
 fn check_existing_window() -> bool {
     use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
     unsafe {
-        let title: Vec<u16> = "Claude Input\0".encode_utf16().collect();
+        let title: Vec<u16> = "MojiBridge\0".encode_utf16().collect();
         let existing = FindWindowW(None, windows::core::PCWSTR(title.as_ptr()));
         if let Ok(h) = existing {
             if !h.0.is_null() {
@@ -41,7 +41,7 @@ fn detach_and_spawn_resident(args: &Args) {
 
     // STEP 2: Check if window already exists (fast FindWindowW call)
     if check_existing_window() {
-        logger::log("[DEBUG detach] Claude Input window already exists, skipping spawn");
+        logger::log("[DEBUG detach] MojiBridge window already exists, skipping spawn");
         return;
     }
 
@@ -93,7 +93,7 @@ fn detach_and_spawn_resident(_args: &Args) {
     eprintln!("Detach mode is only supported on Windows");
 }
 
-/// Japanese IME-friendly input helper for Claude Code
+/// MojiBridge - Japanese IME Input Helper for Claude Code
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -150,7 +150,7 @@ fn main() {
         logger::log(&format!("[DEBUG main] terminal_hwnd: {:?} (from args: {}), title: {}",
             terminal_hwnd, args.terminal_hwnd.is_some(), title));
 
-        // Start global hotkey listener (Ctrl+I to focus claude-input when terminal is active)
+        // Start global hotkey listener (Ctrl+I to focus MojiBridge when terminal is active)
         if let Some(hwnd) = terminal_hwnd {
             hotkey::set_terminal_hwnd(hwnd);
             hotkey::start_hotkey_listener();

@@ -91,39 +91,69 @@ fn handle_hotkey() {
         let foreground = GetForegroundWindow();
         let foreground_hwnd = foreground.0 as isize;
 
+        // Check if MojiBridge is foreground
+        let claude_input_hwnd = get_claude_input_hwnd();
+
         logger::log(&format!(
-            "[DEBUG hotkey] Foreground: {}, Terminal: {}",
-            foreground_hwnd, terminal_hwnd
+            "[DEBUG hotkey] Foreground: {}, Terminal: {}, ClaudeInput: {:?}",
+            foreground_hwnd, terminal_hwnd, claude_input_hwnd
         ));
 
-        // Check if foreground is the terminal
+        // Toggle between terminal and MojiBridge
         if foreground_hwnd == terminal_hwnd {
-            logger::log("[DEBUG hotkey] Terminal is foreground, focusing claude-input");
+            // Terminal is foreground → focus MojiBridge
+            logger::log("[DEBUG hotkey] Terminal is foreground, focusing MojiBridge");
             focus_claude_input();
+        } else if Some(foreground_hwnd) == claude_input_hwnd {
+            // MojiBridge is foreground → focus terminal
+            logger::log("[DEBUG hotkey] MojiBridge is foreground, focusing terminal");
+            focus_terminal(terminal_hwnd);
         } else {
-            logger::log("[DEBUG hotkey] Terminal is not foreground, ignoring");
+            logger::log("[DEBUG hotkey] Other app is foreground, ignoring");
         }
     }
 }
 
-/// Find and focus the claude-input window
+/// Get MojiBridge window handle
+#[cfg(windows)]
+fn get_claude_input_hwnd() -> Option<isize> {
+    unsafe {
+        let title: Vec<u16> = "MojiBridge\0".encode_utf16().collect();
+        let hwnd = FindWindowW(None, windows::core::PCWSTR(title.as_ptr()));
+        match hwnd {
+            Ok(h) if !h.0.is_null() => Some(h.0 as isize),
+            _ => None,
+        }
+    }
+}
+
+/// Focus the terminal window
+#[cfg(windows)]
+fn focus_terminal(hwnd: isize) {
+    unsafe {
+        let hwnd = HWND(hwnd as *mut std::ffi::c_void);
+        let _ = SetForegroundWindow(hwnd);
+    }
+}
+
+/// Find and focus the MojiBridge window
 #[cfg(windows)]
 fn focus_claude_input() {
     unsafe {
-        // Find window by title "Claude Input"
-        let title: Vec<u16> = "Claude Input\0".encode_utf16().collect();
+        // Find window by title "MojiBridge"
+        let title: Vec<u16> = "MojiBridge\0".encode_utf16().collect();
         let hwnd = FindWindowW(None, windows::core::PCWSTR(title.as_ptr()));
 
         match hwnd {
             Ok(h) if !h.0.is_null() => {
-                logger::log(&format!("[DEBUG hotkey] Found Claude Input window: {:?}", h.0));
+                logger::log(&format!("[DEBUG hotkey] Found MojiBridge window: {:?}", h.0));
 
                 // Bring to foreground
                 let result = SetForegroundWindow(h);
                 logger::log(&format!("[DEBUG hotkey] SetForegroundWindow result: {}", result.as_bool()));
             }
             _ => {
-                logger::log("[DEBUG hotkey] Could not find Claude Input window");
+                logger::log("[DEBUG hotkey] Could not find MojiBridge window");
             }
         }
     }

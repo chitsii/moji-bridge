@@ -1,12 +1,12 @@
 [package]
-name = "claude-input"
+name = "moji-bridge"
 version = "0.1.0"
 edition = "2021"
-description = "Japanese IME-friendly input helper for Claude Code with global hotkey support"
+description = "MojiBridge - Japanese IME Input Helper for Claude Code"
 authors = ["tishi"]
 
 [dependencies]
-iced = "0.14"
+iced = { version = "0.14", features = ["image"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 clap = { version = "4", features = ["derive"] }
@@ -16,6 +16,9 @@ sysinfo = "0.32"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = ["Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse", "Win32_Foundation", "Win32_System_Diagnostics_ToolHelp"] }
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
 
 [profile.release]
 lto = true
