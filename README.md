@@ -28,33 +28,40 @@ Claude Code のターミナルでは日本語IMEが正しく動作しないた�
 - **Rust ツールチェーン**: [rustup](https://rustup.rs/) でインストール
 - **Claude Code**: インストール済みであること
 
-### 手順
+### 方法1: cargo install（推奨）
+
+GitHub から直接インストール:
+
+```bash
+cargo install --git https://github.com/chitsii/moji-bridge
+```
+
+デフォルトで `~/.cargo/bin/` にインストールされます。
+
+### 方法2: ソースからビルド
 
 #### 1. ソースコードの取得
 
 ```bash
-git clone https://github.com/your-repo/moji-bridge.git
+git clone https://github.com/chitsii/moji-bridge.git
 cd moji-bridge
 ```
 
-#### 2. ビルド
+#### 2. ビルド & インストール
+
+```bash
+cargo install --path .
+```
+
+または手動でビルド:
 
 ```bash
 cargo build --release
-```
-
-ビルド成果物: `target/release/moji-bridge.exe`
-
-#### 3. 実行ファイルの配置
-
-任意の場所に配置してください（例: `~/.local/bin/`）
-
-```bash
 mkdir -p ~/.local/bin
 cp target/release/moji-bridge.exe ~/.local/bin/
 ```
 
-#### 4. Claude Code フックの設定
+### Claude Code フックの設定
 
 ユーザーホームの `.claude/settings.json` を編集します:
 

@@ -2,8 +2,13 @@
 name = "moji-bridge"
 version = "0.1.0"
 edition = "2021"
-description = "MojiBridge - Japanese IME Input Helper for Claude Code"
+description = "Japanese IME Input Helper for Claude Code on Windows"
 authors = ["tishi"]
+license = "MIT"
+repository = "https://github.com/chitsii/moji-bridge"
+readme = "README.md"
+keywords = ["ime", "japanese", "claude-code", "windows"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 iced = { version = "0.14", features = ["image"] }
