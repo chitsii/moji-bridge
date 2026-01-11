@@ -1,10 +1,10 @@
 # MojiBridge
 
-Japanese IME Input Helper for Claude Code（**Windows専用**）
+シンプルなClaude Code向けの入力補助ツールです。（Windows専用）
 
 ## 概要
 
-Claude Code のターミナルでは日本語IMEが正しく動作しないため、外部GUIウィンドウを使用して入力を行うツールです。
+Claude Code のUIでは、日本語IMEが正しく動作しないため、外部GUIウィンドウを使用して入力を行うツールです。
 
 > **Note**: Windows専用ツールです。Windows API（ウィンドウ操作、ホットキー、プロセス管理）を使用しています。
 
@@ -26,7 +26,7 @@ Claude Code のターミナルでは日本語IMEが正しく動作しないた�
 ### 前提条件
 
 - **Rust ツールチェーン**: [rustup](https://rustup.rs/) でインストール
-- **Claude Code**: インストール済みであること
+- **Claude Code**: 本ツールは単独で動作しますが、Claude Codeと利用することを想定しています
 
 ### 方法1: cargo install（推奨）
 
@@ -103,32 +103,11 @@ cp target/release/moji-bridge.exe ~/.local/bin/
 
 ## 使用方法
 
-### カスタムラベル
-
-ウィンドウにプロジェクト名を表示したい場合:
-
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "C:\\Users\\<ユーザー名>\\.local\\bin\\moji-bridge.exe --detach --label \"My Project\""
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
 ### コマンドライン引数
 
 | 引数 | 説明 |
 |------|------|
-| `--detach` | バックグラウンドで常駐プロセスを起動（**必須**） |
+| `--detach` | バックグラウンドで常駐プロセスを起動（必須） |
 | `--label <NAME>` | ウィンドウに表示するラベル（オプション） |
 
 ### セッション途中での起動（カスタムコマンド）
@@ -141,9 +120,7 @@ Claude Code のカスタムコマンドを設定すると、セッション途�
 MojiBridge (Japanese IME input helper) を起動してください。
 
 次のコマンドを実行してください:
-```bash
 /c/Users/<ユーザー名>/.local/bin/moji-bridge.exe --detach
-```
 
 起動後、Ctrl+I でMojiBridgeとターミナルを切り替えられます。
 ```
