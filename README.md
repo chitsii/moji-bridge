@@ -6,6 +6,10 @@
 
 Claude Code のUIでは、日本語IMEが正しく動作しないため、外部GUIウィンドウを使用して入力を行うツールです。
 
+<p align="center">
+  <img src="./assets/moji-bridge-demo.gif" alt="MojiBridge Demo" width="600">
+</p>
+
 > **Note**: Windows専用ツールです。Windows API（ウィンドウ操作、ホットキー、プロセス管理）を使用しています。
 
 ## 機能
@@ -35,7 +39,7 @@ GitHub から直接インストール:
 cargo install --git https://github.com/chitsii/moji-bridge
 ```
 
-デフォルトで `~/.cargo/bin/` にインストールされます。
+デフォルトで `~/.cargo/bin/` にインストールされます。フック設定のパスもこちらに合わせてください。
 
 ### 方法2: ソースからビルド
 
@@ -74,7 +78,7 @@ cp target/release/moji-bridge.exe ~/.local/bin/
         "hooks": [
           {
             "type": "command",
-            "command": "C:\\Users\\<ユーザー名>\\.local\\bin\\moji-bridge.exe --detach"
+            "command": "C:\\Users\\<ユーザー名>\\.cargo\\bin\\moji-bridge.exe --detach"
           }
         ]
       }
@@ -85,7 +89,7 @@ cp target/release/moji-bridge.exe ~/.local/bin/
 
 > **注意**: パスの `\` はJSONでは `\\` とエスケープが必要です。
 
-#### 5. 動作確認
+### 動作確認
 
 1. Claude Code を起動: `claude`
 2. MojiBridge ウィンドウが自動的に起動することを確認
@@ -119,7 +123,7 @@ Claude Code のカスタムコマンドを設定すると、セッション途�
 MojiBridge (Japanese IME input helper) を起動してください。
 
 次のコマンドを実行してください:
-/c/Users/<ユーザー名>/.local/bin/moji-bridge.exe --detach
+/c/Users/<ユーザー名>/.cargo/bin/moji-bridge.exe --detach
 
 起動後、Ctrl+I でMojiBridgeとターミナルを切り替えられます。
 ```
