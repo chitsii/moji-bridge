@@ -4,7 +4,7 @@
 
 ## 概要
 
-Claude Code のUIでは、日本語IMEが正しく動作しないため、外部GUIウィンドウを使用して入力を行うツールです。
+Claude Codeで日本語IMEが正しく動作しないため、外部GUIを使用して入力を行うツールです。
 
 <p align="center">
   <img src="./assets/moji-bridge-demo.gif" alt="MojiBridge Demo" width="600">
