@@ -124,6 +124,25 @@ cp target/release/moji-bridge.exe ~/.local/bin/
 | `--detach` | バックグラウンドで常駐プロセスを起動（**必須**） |
 | `--label <NAME>` | ウィンドウに表示するラベル（オプション） |
 
+### セッション途中での起動（カスタムコマンド）
+
+Claude Code のカスタムコマンドを設定すると、セッション途中でも `/moji` で起動できます。
+
+**設定ファイルの場所**: `C:\Users\<ユーザー名>\.claude\commands\moji.md`
+
+```markdown
+MojiBridge (Japanese IME input helper) を起動してください。
+
+次のコマンドを実行してください:
+```bash
+/c/Users/<ユーザー名>/.local/bin/moji-bridge.exe --detach
+```
+
+起動後、Ctrl+I でMojiBridgeとターミナルを切り替えられます。
+```
+
+> **注意（GitBash使用時）**: Claude Code が GitBash 環境で動作している場合、パスは Unix 形式（`/c/Users/...`）で記述する必要があります。Windows 形式のパス（`C:\Users\...`）は認識されません。
+
 ### 使用フロー
 
 1. Claude Code を起動

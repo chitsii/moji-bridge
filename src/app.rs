@@ -1,10 +1,13 @@
 use iced::keyboard::{self, Key};
-use iced::widget::{button, column, container, row, text, text_editor};
+use iced::widget::{button, column, container, row, text, text_editor, Id};
+use iced::widget::operation::focus;
 use iced::{event, Element, Event, Font, Length, Size, Subscription, Task};
 use iced::{Background, Border, Color, Theme};
 use iced::window;
-// time module not available in iced 0.14 without feature
-use std::sync::OnceLock;
+use std::sync::{LazyLock, OnceLock};
+
+/// Static ID for the text editor (for programmatic focus)
+static EDITOR_ID: LazyLock<Id> = LazyLock::new(Id::unique);
 
 use crate::clipboard_utils;
 use crate::hook;
@@ -71,9 +74,12 @@ fn resident_update(state: &mut ResidentClaudeInput, message: ResidentMessage) ->
         }
         ResidentMessage::Submit => {
             let input_text = state.content.text();
-            if !input_text.trim().is_empty() {
+            // Normalize line endings: \r\n -> \n, then trim trailing whitespace
+            let input_text = input_text.replace("\r\n", "\n");
+            let input_text = input_text.trim_end();
+            if !input_text.is_empty() {
                 // Write to clipboard
-                if let Err(e) = clipboard_utils::write_to_clipboard(&input_text) {
+                if let Err(e) = clipboard_utils::write_to_clipboard(input_text) {
                     state.status_message = Some(format!("Clipboard error: {}", e));
                     return Task::none();
                 }
@@ -93,10 +99,10 @@ fn resident_update(state: &mut ResidentClaudeInput, message: ResidentMessage) ->
             Task::none()
         }
         ResidentMessage::Event(event) => {
-            // TODO: Auto-focus text editor when window is focused
-            // iced 0.14 API for text_editor focus needs investigation
+            // Auto-focus the text editor when window gains focus
             if let Event::Window(window::Event::Focused) = event {
-                logger::log("[DEBUG app] Window focused");
+                logger::log("[DEBUG app] Window focused, focusing text editor");
+                return focus(EDITOR_ID.clone());
             }
 
             // Handle Ctrl+I to toggle focus back to terminal
@@ -133,44 +139,51 @@ fn resident_update(state: &mut ResidentClaudeInput, message: ResidentMessage) ->
 
 fn resident_view(state: &ResidentClaudeInput) -> Element<'_, ResidentMessage> {
     // Text editor with Catppuccin Mocha styling
+    // Border color changes based on focus status
     let editor = text_editor(&state.content)
-        .placeholder("Enter your prompt... (Ctrl+I: Toggle | Ctrl+Enter: Send)")
+        .id(EDITOR_ID.clone())
+        .placeholder("Ctrl+I: Toggle | Ctrl+Enter: Send")
         .on_action(ResidentMessage::EditorAction)
         .height(Length::Fill)
         .padding(10)
-        .style(|_theme: &Theme, _status| text_editor::Style {
-            background: Background::Color(Color::from_rgb8(49, 50, 68)),   // Surface0
-            border: Border {
-                radius: 8.0.into(),
-                width: 1.0,
-                color: Color::from_rgb8(69, 71, 90),  // Surface1
-            },
-            placeholder: Color::from_rgb8(108, 112, 134), // Overlay0
-            value: Color::from_rgb8(205, 214, 244),       // Text
-            selection: Color::from_rgba8(137, 180, 250, 0.4),  // Blue with 40% opacity
+        .style(|_theme: &Theme, status| {
+            // Bright border when focused (Lavender), dim when not (Surface1)
+            let (border_color, border_width) = match status {
+                text_editor::Status::Focused { .. } => (Color::from_rgb8(180, 190, 254), 2.0), // Lavender
+                _ => (Color::from_rgb8(69, 71, 90), 1.0),  // Surface1
+            };
+            text_editor::Style {
+                background: Background::Color(Color::from_rgb8(49, 50, 68)),   // Surface0
+                border: Border {
+                    radius: 6.0.into(),
+                    width: border_width,
+                    color: border_color,
+                },
+                placeholder: Color::from_rgb8(108, 112, 134), // Overlay0
+                value: Color::from_rgb8(205, 214, 244),       // Text
+                selection: Color::from_rgba8(137, 180, 250, 0.4),  // Blue with 40% opacity
+            }
         });
 
-    // Status message (Catppuccin colors)
-    let status = if let Some(ref msg) = state.status_message {
-        if msg.contains("error") || msg.contains("Error") {
-            text(msg).size(12).color(Color::from_rgb8(243, 139, 168))  // Red
+    // Status message (only show if there's a message)
+    let content: Element<'_, ResidentMessage> = if let Some(ref msg) = state.status_message {
+        let status_text = if msg.contains("error") || msg.contains("Error") {
+            text(msg).size(11).color(Color::from_rgb8(243, 139, 168))  // Red
         } else {
-            text(msg).size(12).color(Color::from_rgb8(166, 227, 161))  // Green
-        }
+            text(msg).size(11).color(Color::from_rgb8(166, 227, 161))  // Green
+        };
+        column![
+            editor,
+            container(status_text).padding([2, 8]),
+        ]
+        .spacing(4)
+        .padding(8)
+        .into()
     } else {
-        text("").size(12)
+        container(editor)
+            .padding(8)
+            .into()
     };
-
-    // Status bar
-    let status_bar = container(status)
-        .padding([5, 10]);
-
-    let content = column![
-        editor,
-        status_bar,
-    ]
-    .spacing(10)
-    .padding(10);
 
     container(content)
         .width(Length::Fill)
@@ -211,14 +224,14 @@ pub fn run_resident_gui(config: ResidentConfig) -> iced::Result {
     )
     .title("MojiBridge")
     .subscription(resident_subscription)
-    .window_size(Size::new(600.0, 350.0))
+    .window_size(Size::new(500.0, 150.0))
     .window(window::Settings {
         icon,
         ..Default::default()
     })
     .theme(resident_theme)
-    .font(include_bytes!("../assets/NotoSansJP-Regular.ttf").as_slice())
-    .default_font(Font::with_name("Noto Sans JP"))
+    .font(include_bytes!("../assets/NotoSansJP-Medium.ttf").as_slice())
+    .default_font(Font::with_name("Noto Sans CJK JP"))
     .run()
 }
 
@@ -305,8 +318,7 @@ fn view(state: &ClaudeInput) -> Element<'_, Message> {
         editor,
         buttons,
     ]
-    .spacing(15)
-    .padding(20);
+    .spacing(15);
 
     container(content)
         .width(Length::Fill)
@@ -340,7 +352,7 @@ pub fn run_gui() -> iced::Result {
         icon,
         ..Default::default()
     })
-    .font(include_bytes!("../assets/NotoSansJP-Regular.ttf").as_slice())
-    .default_font(Font::with_name("Noto Sans JP"))
+    .font(include_bytes!("../assets/NotoSansJP-Medium.ttf").as_slice())
+    .default_font(Font::with_name("Noto Sans CJK JP"))
     .run()
 }

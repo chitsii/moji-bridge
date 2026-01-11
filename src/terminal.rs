@@ -41,10 +41,6 @@ const TERMINAL_PROCESS_NAMES: &[&str] = &[
     "ConEmu.exe",
     "alacritty.exe",
     "wezterm-gui.exe",
-    "Terminal.app",  // macOS
-    "gnome-terminal", // Linux
-    "konsole",        // Linux
-    "xterm",          // Linux
 ];
 
 /// Find the terminal process by traversing parent processes (Windows optimized)
@@ -319,7 +315,7 @@ pub fn paste_to_terminal(hwnd_override: Option<isize>) -> Result<(), String> {
     // Small delay before Enter
     thread::sleep(Duration::from_millis(100));
 
-    // Press Enter
+    // Press Enter to submit
     logger::log("[DEBUG terminal] Pressing Enter");
     enigo.key(Key::Return, enigo::Direction::Click)
         .map_err(|e| format!("Failed to press Enter: {}", e))?;
