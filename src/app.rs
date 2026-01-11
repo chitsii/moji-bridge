@@ -19,19 +19,11 @@ static RESIDENT_CONFIG: OnceLock<ResidentConfigData> = OnceLock::new();
 
 #[derive(Clone)]
 struct ResidentConfigData {
-    #[allow(dead_code)]
-    session_id: String,
-    #[allow(dead_code)]
-    cwd: String,
-    label: Option<String>,
     terminal_hwnd: Option<isize>,
 }
 
 /// Configuration for resident mode
 pub struct ResidentConfig {
-    pub session_id: String,
-    pub cwd: String,
-    pub label: Option<String>,
     pub terminal_hwnd: Option<isize>,
 }
 
@@ -94,7 +86,7 @@ fn resident_update(state: &mut ResidentClaudeInput, message: ResidentMessage) ->
 
                 // Clear input
                 state.content = text_editor::Content::new();
-                state.status_message = Some("Sent!".to_string());
+                state.status_message = None;
             }
             Task::none()
         }
@@ -205,9 +197,6 @@ fn resident_subscription(_state: &ResidentClaudeInput) -> Subscription<ResidentM
 pub fn run_resident_gui(config: ResidentConfig) -> iced::Result {
     // Store config globally (OnceLock ensures thread-safe one-time initialization)
     let _ = RESIDENT_CONFIG.set(ResidentConfigData {
-        session_id: config.session_id,
-        cwd: config.cwd,
-        label: config.label,
         terminal_hwnd: config.terminal_hwnd,
     });
 
@@ -230,7 +219,7 @@ pub fn run_resident_gui(config: ResidentConfig) -> iced::Result {
         ..Default::default()
     })
     .theme(resident_theme)
-    .font(include_bytes!("../assets/NotoSansJP-Medium.ttf").as_slice())
+    .font(include_bytes!("../assets/NotoSansJP-SemiBold.ttf").as_slice())
     .default_font(Font::with_name("Noto Sans CJK JP"))
     .run()
 }
@@ -352,7 +341,7 @@ pub fn run_gui() -> iced::Result {
         icon,
         ..Default::default()
     })
-    .font(include_bytes!("../assets/NotoSansJP-Medium.ttf").as_slice())
+    .font(include_bytes!("../assets/NotoSansJP-SemiBold.ttf").as_slice())
     .default_font(Font::with_name("Noto Sans CJK JP"))
     .run()
 }

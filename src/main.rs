@@ -158,9 +158,6 @@ fn main() {
         }
 
         let config = app::ResidentConfig {
-            session_id: args.session.unwrap_or_default(),
-            cwd: args.cwd.unwrap_or_default(),
-            label: args.label,
             terminal_hwnd,
         };
 
