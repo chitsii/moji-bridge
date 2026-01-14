@@ -11,6 +11,7 @@ static EDITOR_ID: LazyLock<Id> = LazyLock::new(Id::unique);
 
 use crate::clipboard_utils;
 use crate::hook;
+use crate::hotkey;
 use crate::terminal;
 use crate::logger;
 
@@ -20,6 +21,7 @@ static RESIDENT_CONFIG: OnceLock<ResidentConfigData> = OnceLock::new();
 #[derive(Clone)]
 struct ResidentConfigData {
     terminal_hwnd: Option<isize>,
+    window_title: String,
 }
 
 /// Configuration for resident mode
@@ -94,6 +96,14 @@ fn resident_update(state: &mut ResidentClaudeInput, message: ResidentMessage) ->
             // Auto-focus the text editor when window gains focus
             if let Event::Window(window::Event::Focused) = event {
                 logger::log("[DEBUG app] Window focused, focusing text editor");
+
+                // Register own MojiBridge hwnd for hotkey module (find by unique title)
+                if let Some(config) = get_config() {
+                    if let Some(own_hwnd) = terminal::find_window_by_title(&config.window_title) {
+                        hotkey::set_own_moji_hwnd(own_hwnd);
+                    }
+                }
+
                 return focus(EDITOR_ID.clone());
             }
 
@@ -193,12 +203,35 @@ fn resident_subscription(_state: &ResidentClaudeInput) -> Subscription<ResidentM
     event::listen().map(ResidentMessage::Event)
 }
 
+/// Register own MojiBridge hwnd asynchronously (polls until window is found)
+fn register_own_hwnd_async(window_title: String) {
+    std::thread::spawn(move || {
+        // Poll for up to 5 seconds, checking every 100ms
+        for _ in 0..50 {
+            if let Some(hwnd) = terminal::find_window_by_title(&window_title) {
+                hotkey::set_own_moji_hwnd(hwnd);
+                logger::log(&format!("[DEBUG app] Own hwnd registered asynchronously: {}", hwnd));
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        logger::log("[DEBUG app] Failed to find own window after 5 seconds");
+    });
+}
+
 /// Run the GUI application in resident mode
 pub fn run_resident_gui(config: ResidentConfig) -> iced::Result {
+    // Generate unique window title based on terminal hwnd
+    let window_title = format!("MojiBridge-{}", config.terminal_hwnd.unwrap_or(0));
+
     // Store config globally (OnceLock ensures thread-safe one-time initialization)
     let _ = RESIDENT_CONFIG.set(ResidentConfigData {
         terminal_hwnd: config.terminal_hwnd,
+        window_title: window_title.clone(),
     });
+
+    // Start async hwnd registration (polls until window is created)
+    register_own_hwnd_async(window_title.clone());
 
     // Load window icon from PNG
     let icon = window::icon::from_file_data(
@@ -206,12 +239,15 @@ pub fn run_resident_gui(config: ResidentConfig) -> iced::Result {
         None,
     ).ok();
 
+    // Convert to static str for iced title (Box::leak is safe here as this runs once per process)
+    let title_static: &'static str = Box::leak(window_title.into_boxed_str());
+
     iced::application(
         || (ResidentClaudeInput::default(), Task::none()),
         resident_update,
         resident_view,
     )
-    .title("MojiBridge")
+    .title(title_static)
     .subscription(resident_subscription)
     .window_size(Size::new(500.0, 150.0))
     .window(window::Settings {

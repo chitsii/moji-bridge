@@ -11,7 +11,7 @@ use sysinfo::{Pid, System};
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
 #[cfg(windows)]
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GetWindowThreadProcessId, SetForegroundWindow, GetWindowTextW,
+    EnumWindows, FindWindowW, GetWindowThreadProcessId, IsWindow, SetForegroundWindow, GetWindowTextW,
 };
 
 /// Get window title by handle (for debugging)
@@ -341,4 +341,46 @@ pub fn get_foreground_window() -> Option<isize> {
 #[cfg(not(windows))]
 pub fn get_foreground_window() -> Option<isize> {
     None
+}
+
+/// Find window by title (Windows only)
+#[cfg(windows)]
+pub fn find_window_by_title(title: &str) -> Option<isize> {
+    unsafe {
+        let title_with_null = format!("{}\0", title);
+        let title_wide: Vec<u16> = title_with_null.encode_utf16().collect();
+        let hwnd = FindWindowW(None, windows::core::PCWSTR(title_wide.as_ptr()));
+        match hwnd {
+            Ok(h) if !h.0.is_null() => Some(h.0 as isize),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(not(windows))]
+pub fn find_window_by_title(_title: &str) -> Option<isize> {
+    None
+}
+
+/// Start monitoring terminal window - exit if terminal is closed
+#[cfg(windows)]
+pub fn start_terminal_monitor(terminal_hwnd: isize) {
+    thread::spawn(move || {
+        logger::log(&format!("[DEBUG terminal] Starting terminal monitor for hwnd: {}", terminal_hwnd));
+        loop {
+            thread::sleep(Duration::from_secs(5));
+            unsafe {
+                let hwnd = HWND(terminal_hwnd as *mut std::ffi::c_void);
+                if !IsWindow(hwnd).as_bool() {
+                    logger::log("[DEBUG terminal] Terminal window closed, exiting MojiBridge");
+                    std::process::exit(0);
+                }
+            }
+        }
+    });
+}
+
+#[cfg(not(windows))]
+pub fn start_terminal_monitor(_terminal_hwnd: isize) {
+    // Not implemented for non-Windows
 }

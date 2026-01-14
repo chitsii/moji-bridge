@@ -10,13 +10,15 @@ use clap::Parser;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
-/// Check if a MojiBridge window already exists
+/// Check if a MojiBridge window for specific terminal already exists
 #[cfg(windows)]
-fn check_existing_window() -> bool {
+fn check_existing_window_for_terminal(terminal_hwnd: isize) -> bool {
     use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
     unsafe {
-        let title: Vec<u16> = "MojiBridge\0".encode_utf16().collect();
-        let existing = FindWindowW(None, windows::core::PCWSTR(title.as_ptr()));
+        // Window title is now "MojiBridge-{terminal_hwnd}"
+        let title = format!("MojiBridge-{}\0", terminal_hwnd);
+        let title_wide: Vec<u16> = title.encode_utf16().collect();
+        let existing = FindWindowW(None, windows::core::PCWSTR(title_wide.as_ptr()));
         if let Ok(h) = existing {
             if !h.0.is_null() {
                 return true;
@@ -24,6 +26,11 @@ fn check_existing_window() -> bool {
         }
         false
     }
+}
+
+#[cfg(not(windows))]
+fn check_existing_window_for_terminal(_terminal_hwnd: isize) -> bool {
+    false
 }
 
 /// Spawn the resident process detached (no console window) and exit immediately
@@ -39,10 +46,12 @@ fn detach_and_spawn_resident(args: &Args) {
     // This captures the terminal window before any delays
     let hwnd = terminal::get_foreground_window();
 
-    // STEP 2: Check if window already exists (fast FindWindowW call)
-    if check_existing_window() {
-        logger::log("[DEBUG detach] MojiBridge window already exists, skipping spawn");
-        return;
+    // STEP 2: Check if MojiBridge window for this terminal already exists
+    if let Some(h) = hwnd {
+        if check_existing_window_for_terminal(h) {
+            logger::log(&format!("[DEBUG detach] MojiBridge window for terminal {} already exists, skipping spawn", h));
+            return;
+        }
     }
 
     // STEP 3: Get exe path and build args
@@ -151,10 +160,12 @@ fn main() {
             terminal_hwnd, args.terminal_hwnd.is_some(), title));
 
         // Start global hotkey listener (Ctrl+I to focus MojiBridge when terminal is active)
+        // Also start terminal monitor to exit when terminal closes
         if let Some(hwnd) = terminal_hwnd {
             hotkey::set_terminal_hwnd(hwnd);
             hotkey::start_hotkey_listener();
-            logger::log("[DEBUG main] Hotkey listener started");
+            terminal::start_terminal_monitor(hwnd);
+            logger::log("[DEBUG main] Hotkey listener and terminal monitor started");
         }
 
         let config = app::ResidentConfig {
