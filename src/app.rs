@@ -6,6 +6,48 @@ use iced::{Background, Border, Color, Theme};
 use iced::window;
 use std::sync::{LazyLock, OnceLock};
 
+/// Adjectives for random name generation (Docker-style)
+const ADJECTIVES: &[&str] = &[
+    "clever", "happy", "swift", "calm", "brave",
+    "gentle", "bright", "cool", "warm", "quick",
+    "wild", "quiet", "bold", "keen", "proud",
+];
+
+/// Nouns for random name generation (Docker-style)
+const NOUNS: &[&str] = &[
+    "tiger", "panda", "eagle", "wolf", "fox",
+    "crane", "hawk", "bear", "deer", "owl",
+    "lion", "falcon", "otter", "raven", "lynx",
+];
+
+/// Accent colors (Catppuccin Mocha palette)
+const ACCENT_COLORS: &[(u8, u8, u8)] = &[
+    (245, 194, 231), // Pink
+    (203, 166, 247), // Mauve
+    (243, 139, 168), // Red
+    (250, 179, 135), // Peach
+    (249, 226, 175), // Yellow
+    (166, 227, 161), // Green
+    (148, 226, 213), // Teal
+    (137, 220, 235), // Sky
+    (137, 180, 250), // Blue
+];
+
+/// Generate a random name from hwnd (Docker-style: adjective-noun)
+fn generate_random_name(hwnd: isize) -> String {
+    let seed = hwnd.unsigned_abs() as usize;
+    let adj = ADJECTIVES[seed % ADJECTIVES.len()];
+    let noun = NOUNS[(seed / ADJECTIVES.len()) % NOUNS.len()];
+    format!("{}-{}", adj, noun)
+}
+
+/// Get accent color from hwnd
+fn get_accent_color(hwnd: isize) -> Color {
+    let idx = hwnd.unsigned_abs() as usize % ACCENT_COLORS.len();
+    let (r, g, b) = ACCENT_COLORS[idx];
+    Color::from_rgb8(r, g, b)
+}
+
 /// Static ID for the text editor (for programmatic focus)
 static EDITOR_ID: LazyLock<Id> = LazyLock::new(Id::unique);
 
@@ -22,6 +64,7 @@ static RESIDENT_CONFIG: OnceLock<ResidentConfigData> = OnceLock::new();
 struct ResidentConfigData {
     terminal_hwnd: Option<isize>,
     window_title: String,
+    accent_color: Color,
 }
 
 /// Configuration for resident mode
@@ -140,19 +183,28 @@ fn resident_update(state: &mut ResidentClaudeInput, message: ResidentMessage) ->
 }
 
 fn resident_view(state: &ResidentClaudeInput) -> Element<'_, ResidentMessage> {
+    // Get accent color from config (falls back to Lavender if not set)
+    let accent_color = get_config()
+        .map(|c| c.accent_color)
+        .unwrap_or(Color::from_rgb8(180, 190, 254));
+
     // Text editor with Catppuccin Mocha styling
-    // Border color changes based on focus status
+    // Border color changes based on focus status (uses instance-specific accent color)
     let editor = text_editor(&state.content)
         .id(EDITOR_ID.clone())
         .placeholder("Ctrl+I: Toggle | Ctrl+Enter: Send")
         .on_action(ResidentMessage::EditorAction)
         .height(Length::Fill)
         .padding(10)
-        .style(|_theme: &Theme, status| {
-            // Bright border when focused (Lavender), dim when not (Surface1)
+        .style(move |_theme: &Theme, status| {
+            // Bright border when focused (accent color), dim when not (darkened accent)
             let (border_color, border_width) = match status {
-                text_editor::Status::Focused { .. } => (Color::from_rgb8(180, 190, 254), 2.0), // Lavender
-                _ => (Color::from_rgb8(69, 71, 90), 1.0),  // Surface1
+                text_editor::Status::Focused { .. } => (accent_color, 4.0),  // Bright, thick
+                _ => {
+                    // Non-focused: use darkened accent color (50% brightness)
+                    let Color { r, g, b, .. } = accent_color;
+                    (Color::from_rgba(r * 0.5, g * 0.5, b * 0.5, 1.0), 3.0)
+                }
             };
             text_editor::Style {
                 background: Background::Color(Color::from_rgb8(49, 50, 68)),   // Surface0
@@ -221,17 +273,28 @@ fn register_own_hwnd_async(window_title: String) {
 
 /// Run the GUI application in resident mode
 pub fn run_resident_gui(config: ResidentConfig) -> iced::Result {
-    // Generate unique window title based on terminal hwnd
-    let window_title = format!("MojiBridge-{}", config.terminal_hwnd.unwrap_or(0));
+    let hwnd = config.terminal_hwnd.unwrap_or(0);
+
+    // Generate unique window title based on terminal hwnd (for internal identification)
+    let internal_title = format!("MojiBridge-{}", hwnd);
+
+    // Generate random name and accent color from hwnd
+    let random_name = generate_random_name(hwnd);
+    let accent_color = get_accent_color(hwnd);
+
+    // Display title includes random name for user visibility
+    let display_title = format!("{} | {}", internal_title, random_name);
 
     // Store config globally (OnceLock ensures thread-safe one-time initialization)
     let _ = RESIDENT_CONFIG.set(ResidentConfigData {
         terminal_hwnd: config.terminal_hwnd,
-        window_title: window_title.clone(),
+        window_title: internal_title.clone(),
+        accent_color,
     });
 
     // Start async hwnd registration (polls until window is created)
-    register_own_hwnd_async(window_title.clone());
+    // Uses internal_title for FindWindowW lookup
+    register_own_hwnd_async(internal_title.clone());
 
     // Load window icon from PNG
     let icon = window::icon::from_file_data(
@@ -240,7 +303,8 @@ pub fn run_resident_gui(config: ResidentConfig) -> iced::Result {
     ).ok();
 
     // Convert to static str for iced title (Box::leak is safe here as this runs once per process)
-    let title_static: &'static str = Box::leak(window_title.into_boxed_str());
+    // Use display_title for window title bar (user-visible)
+    let title_static: &'static str = Box::leak(display_title.into_boxed_str());
 
     iced::application(
         || (ResidentClaudeInput::default(), Task::none()),

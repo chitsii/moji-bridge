@@ -11,7 +11,7 @@ use sysinfo::{Pid, System};
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
 #[cfg(windows)]
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, FindWindowW, GetWindowThreadProcessId, IsWindow, SetForegroundWindow, GetWindowTextW,
+    EnumWindows, GetWindowThreadProcessId, IsWindow, SetForegroundWindow, GetWindowTextW,
 };
 
 /// Get window title by handle (for debugging)
@@ -343,18 +343,42 @@ pub fn get_foreground_window() -> Option<isize> {
     None
 }
 
-/// Find window by title (Windows only)
+/// Context for EnumWindows callback (title prefix search)
 #[cfg(windows)]
-pub fn find_window_by_title(title: &str) -> Option<isize> {
-    unsafe {
-        let title_with_null = format!("{}\0", title);
-        let title_wide: Vec<u16> = title_with_null.encode_utf16().collect();
-        let hwnd = FindWindowW(None, windows::core::PCWSTR(title_wide.as_ptr()));
-        match hwnd {
-            Ok(h) if !h.0.is_null() => Some(h.0 as isize),
-            _ => None,
-        }
+struct FindByTitleContext {
+    prefix: String,
+    found_hwnd: Option<isize>,
+}
+
+#[cfg(windows)]
+unsafe extern "system" fn enum_window_proc_by_title(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let context = &mut *(lparam.0 as *mut FindByTitleContext);
+    let title = get_window_title(hwnd.0 as isize);
+
+    if title.starts_with(&context.prefix) {
+        context.found_hwnd = Some(hwnd.0 as isize);
+        return BOOL(0); // Stop enumeration
     }
+    BOOL(1) // Continue enumeration
+}
+
+/// Find window by title prefix (Windows only)
+/// Uses EnumWindows for prefix matching instead of exact match
+#[cfg(windows)]
+pub fn find_window_by_title(title_prefix: &str) -> Option<isize> {
+    let mut context = FindByTitleContext {
+        prefix: title_prefix.to_string(),
+        found_hwnd: None,
+    };
+
+    unsafe {
+        let _ = EnumWindows(
+            Some(enum_window_proc_by_title),
+            LPARAM(&mut context as *mut FindByTitleContext as isize),
+        );
+    }
+
+    context.found_hwnd
 }
 
 #[cfg(not(windows))]
